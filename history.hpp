@@ -20,6 +20,33 @@ typedef struct {
 
 using namespace boost::intrusive;
 
+#define min3(a,b,c) std::min(std::min(a, b), c) 
+
+int editDistanceRecursive(std::string str1, std::string str2, int n, int m) {
+    // If str1 is empty, insert all characters of str2
+    if (m == 0)
+        return n;
+    // If str2 is empty, remove all characters of str1
+    if (n == 0)
+        return m;
+
+    // If the last characters match, move to the next pair
+    if (str1[m - 1] == str2[n - 1])
+        return editDistanceRecursive(str1, str2, m - 1,
+                                     n - 1);
+
+    // If the last characters don't match, consider all
+    // three operations
+    return 1
+           + min3(editDistanceRecursive(str1, str2, m,
+                                       n - 1), // Insert
+                 editDistanceRecursive(str1, str2, m - 1,
+                                       n), // Remove
+                 editDistanceRecursive(str1, str2, m - 1,
+                                       n - 1) // Replace
+           );
+}
+
 // a simple data structure for storing login line information
 class HistoryEntry : public set_base_hook<optimize_size<true> > {
     std::tm t_; // when this entry was written (log time)
@@ -69,6 +96,9 @@ class HistoryEntry : public set_base_hook<optimize_size<true> > {
     std::string getValue() {
         return value_;
     }
+    std::tm getTime() {
+        return t_;
+    }
 };
 
 typedef set< HistoryEntry, compare<std::greater<HistoryEntry> > > history_t;
@@ -83,7 +113,23 @@ typedef struct {
 
 } file_entry_t;
 
-std::pair<std::tm, bool> parseDate(std::string str) {
+std::tuple<std::tm, bool, std::string> parseDate(std::string str) {
+    // split string into date (beginning) and rest
+    int spaces = 0;
+    std::string front("");
+    std::string rest("");
+    for (int i = 0; i < str.size(); i++) {
+        if (str[i] == ' ')
+            spaces++;
+        if (spaces == 2) {
+            front = str.substr(0, i);
+            rest = str.substr(i+1);
+        }
+    }
+    if (front.size() == 0) {
+        return std::make_tuple(std::tm{}, false, std::string());
+    }
+
     std::istringstream ss(str);
     std::tm t = {};
     ss.imbue(std::locale(""));
@@ -97,10 +143,10 @@ std::pair<std::tm, bool> parseDate(std::string str) {
             // skip this event, could not read the log time
             //if (verbose)
             //    fprintf(stdout, "PARSE FAILED: \"%s\"\n", str.c_str());
-            return std::make_pair(std::tm{}, false);
+            return std::make_tuple(std::tm{}, false, std::string());
         }
     }
-    return std::make_pair(t, true);
+    return std::make_tuple(t, true, rest);
 }
 
 bool addEntry(std::vector<HistoryEntry> *values, std::string line, std::string originator) {
@@ -122,13 +168,13 @@ bool addEntry(std::vector<HistoryEntry> *values, std::string line, std::string o
         type = "WARNING";
     }
 
-    std::pair<std::tm, bool> ret = parseDate(line);
-    if (!ret.second) {
+    std::tuple<std::tm, bool, std::string> ret = parseDate(line);
+    if (!std::get<1>(ret)) {
         // TODO: failed to detect the date for this line, we could use the last modification time as a worst case thing here?
         // for now just ignore this line
         return false; // do nothing
     }
-    std::tm t = ret.first;
+    std::tm t = std::get<0>(ret);
     // parsed time is now:
     //std::stringstream bla; 
     //bla << std::put_time(&t, "%c");
@@ -136,7 +182,7 @@ bool addEntry(std::vector<HistoryEntry> *values, std::string line, std::string o
     //    fprintf(stdout, "WORKING %s line from %s to add is: %s\n", bla.str().c_str(), originator.c_str(), line.c_str());
 
     //std::vector<HistoryEntry> values;
-    values->push_back(HistoryEntry(t, originator, type, line));
+    values->push_back(HistoryEntry(t, originator, type, std::get<2>(ret)));
     return true;
 }
 
@@ -213,9 +259,6 @@ void printHistory(history_t *history) {
     }
 }
 
-
-// find neighbors using https://www.geeksforgeeks.org/convert-binary-tree-to-circular-doubly-linked-list-using-linear-extra-space/?ref=oin_asr7
-
 // Print out a specific section of the history.
 std::vector<HistoryEntry> getLocalHistory(history_t *history, int location, int window=3) {
     std::vector<HistoryEntry> entries;
@@ -237,6 +280,41 @@ std::vector<HistoryEntry> getLocalHistory(history_t *history, int location, int 
         entries.push_back(*here);
         ++here;
     }
+
+    return entries;
+}
+
+// Print out a specific section of the history.
+std::vector<HistoryEntry> getLocalHistoryDuration(history_t *history, int location, int secondsAroundLocation=(60*24)) {
+    std::vector<HistoryEntry> entries;
+    history_t::iterator here(history->begin());
+
+    if (location < 0)
+        location = history->size() - location;
+
+    std::advance(here, location);
+    std::tm mid_time = (*here).getTime();
+    mid_time.tm_sec -= secondsAroundLocation;
+    std::mktime(&mid_time); // should fix the overflow due to seconds subtracted
+    // go backwards
+    HistoryEntry stop(mid_time, std::string(""), std::string(""), std::string(""));
+    while (here != history->end() && stop < *here) {
+        entries.insert(entries.begin(), *here);
+        here++;
+    }
+    here = history->begin();
+    std::advance(here, location);
+    mid_time = (*here).getTime();
+    mid_time.tm_sec += secondsAroundLocation;
+    std::mktime(&mid_time); // should fix the overflow due to seconds added
+
+    // go backwards
+    stop = HistoryEntry(mid_time, std::string(""), std::string(""), std::string(""));
+    while (here != history->begin() && stop > *here) {
+        entries.push_back(*here);
+        here--;
+    }
+
 
     return entries;
 }

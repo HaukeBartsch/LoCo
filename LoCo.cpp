@@ -129,12 +129,17 @@ int main(int argc, char *argv[]) {
 
     // get local history with
     //    std::vector<HistoryEntry> getLocalHistory(history_t *history, int location, int window=3)
-    std::vector<HistoryEntry> localHistory = getLocalHistory(&history, 15, 3);
+    /*std::vector<HistoryEntry> localHistory = getLocalHistory(&history, 15, 3);
     fprintf(stdout, "Start printing specific history entries\n");
     for (int i = 0; i < localHistory.size(); i++) {
         fprintf(stdout, "\t%d %s\n", i-3, localHistory[i].toString().c_str());
-    }
+    }*/
 
+    std::vector<HistoryEntry> localHistory2 = getLocalHistoryDuration(&history, history.size()/2, 60*60); // seconds around this element
+    fprintf(stdout, "Start printing specific local time history entries\n");
+    for (int i = 0; i < localHistory2.size(); i++) {
+        fprintf(stdout, "\t%d %s\n", i, localHistory2[i].toString().c_str());
+    }
 
     // now print in summary all our files in log_files
     summaryJSON["logs"] = json::array();
