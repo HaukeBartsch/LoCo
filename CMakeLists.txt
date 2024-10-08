@@ -29,7 +29,7 @@ ENDIF()
 
 
 # target_link_libraries(your_target ${Boost_LIBRARIES})
-add_executable(LoCo LoCo.cpp)
+add_executable(LoCo LoCo.cpp history.hpp)
 target_include_directories(LoCo PUBLIC)
 target_link_libraries(LoCo ${Boost_LIBRARIES} TBB::tbb)
 

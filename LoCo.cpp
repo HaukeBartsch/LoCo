@@ -25,7 +25,7 @@ inline bool ends_with(std::string const & value, std::string const & ending) {
     return std::equal(ending.rbegin(), ending.rend(), value.rbegin());
 }
 
-void addToWriteTime(file_entry_t *entry, int seconds) {
+void addToImportedTime(file_entry_t *entry, int seconds) {
     auto duration = std::chrono::duration<float, std::ratio<1, 1>>(seconds); // minus 60 seconds to force write
     (*entry).last_imported_time = (*entry).last_write_time + std::chrono::duration_cast<std::chrono::seconds>(duration);
 }
@@ -87,8 +87,8 @@ int main(int argc, char *argv[]) {
                 log_folders.push_back(tmp);
             } else if (std::filesystem::is_regular_file(tmp)) {
                 //std::filesystem::file_time_type ftime = std::filesystem::last_write_time(tmp);
-                file_entry_t entry = { .filename = tmp, .last_write_time = std::filesystem::last_write_time(tmp) };
-                addToWriteTime(&entry, -60);
+                file_entry_t entry = { .filename = tmp, .last_write_time = std::filesystem::last_write_time(tmp), .num_imported = 0 };
+                addToImportedTime(&entry, -60);
                 log_files.push_back(entry);
             } else {
                 fprintf(stderr, "Error: logfiles argument is not a valid directory or file [%s]\n", tmp.c_str());
@@ -106,8 +106,8 @@ int main(int argc, char *argv[]) {
                 if (!ends_with(fn, ".log"))
                     continue; // ignore
                 //std::filesystem::file_time_type ftime = std::filesystem::last_write_time(fn);
-                file_entry_t entry = { .filename = fn, .last_write_time = std::filesystem::last_write_time(fn) };
-                addToWriteTime(&entry, -60);
+                file_entry_t entry = { .filename = fn, .last_write_time = std::filesystem::last_write_time(fn), .num_imported = 0 };
+                addToImportedTime(&entry, -60);
                 log_files.push_back(entry);
             }
         }
@@ -116,9 +116,24 @@ int main(int argc, char *argv[]) {
     // create history and add events to it
     history_t history;
     for (int i = 0; i < log_files.size(); i++) {
+        if (verbose)
+            fprintf(stderr, "Reading in %s\n", log_files[i].filename.c_str());
         updateHistory(&history, &(log_files[i]));
     }
-    printHistory(&history);
+    // upload yet again (hopefully no duplicates now)
+    for (int i = 0; i < log_files.size(); i++) {
+        updateHistory(&history, &(log_files[i]));
+    }
+    if (verbose)
+        printHistory(&history); // only works in verbose mode
+
+    // get local history with
+    //    std::vector<HistoryEntry> getLocalHistory(history_t *history, int location, int window=3)
+    std::vector<HistoryEntry> localHistory = getLocalHistory(&history, 15, 3);
+    fprintf(stdout, "Start printing specific history entries\n");
+    for (int i = 0; i < localHistory.size(); i++) {
+        fprintf(stdout, "\t%d %s\n", i-3, localHistory[i].toString().c_str());
+    }
 
 
     // now print in summary all our files in log_files
@@ -129,6 +144,8 @@ int main(int argc, char *argv[]) {
         // this requires C++ version 20
         ar["last_imported_time"] = std::format("{}", log_files[i].last_imported_time);
         ar["last_write_time"] = std::format("{}", log_files[i].last_write_time);
+        ar["num_entries"] = log_files[i].linear_event_list.size();
+        ar["num_imported"] = log_files[i].num_imported;
         summaryJSON["logs"].push_back(ar);
     }
 
