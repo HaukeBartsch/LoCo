@@ -27,9 +27,10 @@ ELSE(LIBZIP_FOUND)
   MESSAGE(FATAL_ERROR "Cannot build app without libzip.")
 ENDIF()
 
+find_package(READLINE)
 
 # target_link_libraries(your_target ${Boost_LIBRARIES})
-add_executable(LoCo LoCo.cpp history.hpp)
-target_include_directories(LoCo PUBLIC)
-target_link_libraries(LoCo ${Boost_LIBRARIES} TBB::tbb)
+add_executable(LoCo LoCo.cpp history.hpp backend/seq2pat.hpp backend/seq2pat.cpp)
+target_include_directories(LoCo PUBLIC backend)
+target_link_libraries(LoCo ${Boost_LIBRARIES} TBB::tbb READLINE)
 

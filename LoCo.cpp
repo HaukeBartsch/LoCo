@@ -10,6 +10,9 @@
 #include <boost/filesystem.hpp>
 #include "history.hpp"
 
+#include "readline/readline.h"
+#include "readline/history.h"
+
 using namespace std;
 using json = nlohmann::json;
 using namespace boost::filesystem;
@@ -121,13 +124,13 @@ int main(int argc, char *argv[]) {
         updateHistory(&history, &(log_files[i]));
     }
     // upload yet again (hopefully no duplicates now)
-    for (int i = 0; i < log_files.size(); i++) {
-        updateHistory(&history, &(log_files[i]));
-    }
+    //for (int i = 0; i < log_files.size(); i++) {
+    //    updateHistory(&history, &(log_files[i]));
+    //}
     if (verbose)
-        printHistory(&history); // only works in verbose mode
+        printHistory(&history);
 
-    // get local history with
+    // get local history in number of events
     //    std::vector<HistoryEntry> getLocalHistory(history_t *history, int location, int window=3)
     /*std::vector<HistoryEntry> localHistory = getLocalHistory(&history, 15, 3);
     fprintf(stdout, "Start printing specific history entries\n");
@@ -135,10 +138,48 @@ int main(int argc, char *argv[]) {
         fprintf(stdout, "\t%d %s\n", i-3, localHistory[i].toString().c_str());
     }*/
 
-    std::vector<HistoryEntry> localHistory2 = getLocalHistoryDuration(&history, history.size()/2, 60*60); // seconds around this element
-    fprintf(stdout, "Start printing specific local time history entries\n");
-    for (int i = 0; i < localHistory2.size(); i++) {
-        fprintf(stdout, "\t%d %s\n", i, localHistory2[i].toString().c_str());
+    int location = history.size()/2;
+    int width = 360*60;
+    std::string text;
+    const char *line;
+    while ((line = readline(">>> ")) != nullptr) {
+        //cout << "[" << line << "]" << endl;
+        if (*line) 
+            add_history(line);
+
+        float flocation = 0.0f;
+        float fwidth = 1.0f;
+        sscanf(line, "%f, %f", &flocation, &fwidth);
+
+        if (flocation < 0)
+            flocation = 1.0f;
+        if (flocation < 1.0001f) {
+            location = history.size() * flocation;
+        } else {
+            location = flocation;
+        }
+        if (fwidth < 1.0001f) {
+            width = history.size() * fwidth;
+        } else {
+            width = fwidth;
+        }
+
+        if (location > history.size())
+            location = history.size();
+        if (width < 0)
+            width = 1; // in seconds
+        fprintf(stdout, "run: %d %d\n", location, width);
+        // get local history in seconds around an event
+        std::vector<HistoryEntry> localHistory2 = getLocalHistoryDuration(&history, location, width); // seconds around this element
+        fprintf(stdout, "Specific local time history entries [location: %d, width: %d]\n", location, width);
+        for (int i = 0; i < localHistory2.size(); i++) {
+            fprintf(stdout, "\t%d %s\n", i, localHistory2[i].toString().c_str());
+        }
+
+        // see if we have repeating things
+        detectEvent(&localHistory2);
+
+        std::free((void *)line);
     }
 
     // now print in summary all our files in log_files

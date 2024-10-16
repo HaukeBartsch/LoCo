@@ -3,9 +3,11 @@
 #include <map>
 #include <list>
 #include <boost/intrusive/set.hpp>
+#include <boost/algorithm/string.hpp>
 #include <vector>
 #include <functional>
 #include <cassert>
+#include "backend/seq2pat.hpp"
 
 
 extern bool verbose;
@@ -19,6 +21,9 @@ typedef struct {
 } entry_t;
 
 using namespace boost::intrusive;
+
+
+
 
 #define min3(a,b,c) std::min(std::min(a, b), c) 
 
@@ -47,6 +52,40 @@ int editDistanceRecursive(std::string str1, std::string str2, int n, int m) {
            );
 }
 
+int editDistDP(const std::string &s1, const std::string &s2) {
+  
+    int m = s1.length();
+    int n = s2.length();
+    int largestAllowedDifference = 5;
+
+    // Create a table to store results of subproblems
+    std::vector<std::vector<int>> dp(m + 1, std::vector<int>(n + 1));
+
+    // Fill the known entries in dp[][]
+    // If one string is empty, then answer 
+    // is length of the other string
+    for (int i = 0; i <= m; i++) 
+        dp[i][0] = i;
+    for (int j = 0; j <= n; j++) 
+        dp[0][j] = j; 
+
+    // Fill the rest of dp[][]
+    for (int i = 1; i <= m; i++) {
+        for (int j = 1; j <= n; j++) {
+            if (s1[i - 1] == s2[j - 1])
+                dp[i][j] = dp[i - 1][j - 1];
+            else
+                dp[i][j] = 1 + std::min({dp[i][j - 1],  
+                                 dp[i - 1][j],   
+                                 dp[i - 1][j - 1]});
+            //if (dp[i][j] > largestAllowedDifference)
+            //    return dp[i][j];
+        }
+    }
+
+    return dp[m][n];
+}
+
 // a simple data structure for storing login line information
 class HistoryEntry : public set_base_hook<optimize_size<true> > {
     std::tm t_; // when this entry was written (log time)
@@ -61,25 +100,32 @@ class HistoryEntry : public set_base_hook<optimize_size<true> > {
     friend bool operator< (const HistoryEntry &a, const HistoryEntry &b) {
         std::tm at = a.t_; // we need a non-const version because mktime will store something inside
         std::tm bt = b.t_;
+        time_t tat = std::mktime(&at); // in case this is expensive to it only once
+        time_t tbt = std::mktime(&bt);
         // if the two times are equal we should compare the content as well (sort by value string)
-        if (std::mktime(&at) == std::mktime(&bt)) {
+        if (tat == tbt) { // std::mktime(&at) == std::mktime(&bt)) {
             return a.value_ < b.value_;
         }
-        return std::mktime(&at) < std::mktime(&bt);
+        return tat < tbt; // std::mktime(&at) < std::mktime(&bt);
     }
     friend bool operator> (const HistoryEntry &a, const HistoryEntry &b) {
         std::tm at = a.t_;
         std::tm bt = b.t_;
-        if (std::mktime(&at) == std::mktime(&bt)) {
+        time_t tat = std::mktime(&at); // in case this is expensive to it only once
+        time_t tbt = std::mktime(&bt);
+        if (tat == tbt) { // std::mktime(&at) == std::mktime(&bt)) {
             return a.value_ > b.value_;
         }
-        return std::mktime(&at) > std::mktime(&bt);
+        return tat > tbt; // std::mktime(&at) > std::mktime(&bt);
     }
     friend bool operator== (const HistoryEntry &a, const HistoryEntry &b) {
         std::tm at = a.t_;
         std::tm bt = b.t_;
+        time_t tat = std::mktime(&at); // in case this is expensive to it only once
+        time_t tbt = std::mktime(&bt);
         // two events are only equal if they have the same time and the same content (value)
-        return (std::mktime(&at) == std::mktime(&bt)) && (a.value_ == b.value_);
+        return (tat == tbt) && (a.value_ == b.value_);
+        //return (std::mktime(&at) == std::mktime(&bt)) && (a.value_ == b.value_);
     }
     std::string toString() {
         std::stringstream bla; 
@@ -123,7 +169,9 @@ std::tuple<std::tm, bool, std::string> parseDate(std::string str) {
             spaces++;
         if (spaces == 2) {
             front = str.substr(0, i);
-            rest = str.substr(i+1);
+            rest = str.substr(i+1); //  + std::string("\"") + str + std::string("\"");
+            boost::trim_left(rest);
+            break;
         }
     }
     if (front.size() == 0) {
@@ -317,4 +365,116 @@ std::vector<HistoryEntry> getLocalHistoryDuration(history_t *history, int locati
 
 
     return entries;
+}
+
+// find unique sequences of events that repeat at least N times (more than by chance?)
+// use: time codes for same, before and after
+std::vector<std::vector<HistoryEntry> > detectEvent(std::vector<HistoryEntry> *horizon) {
+    // return a number of events that happen more than once
+    std::vector<std::vector<HistoryEntry> > events;
+    std::vector<std::string> repeating_events_list;
+
+    // create a list of repeating events (based on string comparisons)
+    // if an event does not repeat at least 2 times its not an event
+    struct cmpByEditDistance {
+        bool operator()(const std::string& a, const std::string& b) const {
+            return a < b;
+            //return editDistDP(a, b);
+            // return editDistanceRecursive(a, b, a.size(), b.size());
+            // return a.length() < b.length();
+        }
+    };
+
+    std::map<std::string, int, cmpByEditDistance> repeatingEvents;
+    for (int i = 0; i < horizon->size(); i++) {
+        std::string v = (*horizon)[i].getValue();
+        if (repeatingEvents.find( v ) == repeatingEvents.end())
+            repeatingEvents.insert(std::pair<std::string, int>(v, 0));
+        repeatingEvents.insert(std::pair<std::string, int>(v, ++repeatingEvents[v]));
+    }
+    auto it = repeatingEvents.begin();
+    while (it != repeatingEvents.end()) {
+        if ((*it).second > 1)
+            repeating_events_list.push_back((*it).first);
+        it++;
+    }
+    if (verbose)
+        fprintf(stdout, "%zu unique events, repeating events in this batch: %zu\n", repeatingEvents.size(), repeating_events_list.size());
+
+    // create an alternative history based on our repeating events only, store position in repeating_events_list as identity of the string
+    std::vector<std::vector<int> > alternativeHistory;
+    std::vector<std::vector<int> > idx_attr;
+    bool testing = false;
+    int L = 0; // max value in history
+    int splits = 3; // make 3 sequences out of history, store in alternativeHistory
+    if (testing) {
+        alternativeHistory.push_back(std::vector<int>());
+        alternativeHistory[0].push_back(1);
+        alternativeHistory[0].push_back(2);
+        alternativeHistory[0].push_back(1);
+        alternativeHistory[0].push_back(2);
+        alternativeHistory[0].push_back(3);
+        alternativeHistory[0].push_back(2);
+        alternativeHistory[0].push_back(1);
+        alternativeHistory[0].push_back(2);
+
+        alternativeHistory.push_back(std::vector<int>());
+        alternativeHistory[1].push_back(1);
+        alternativeHistory[1].push_back(2);
+        alternativeHistory[1].push_back(1);
+        alternativeHistory[1].push_back(2);
+        alternativeHistory[1].push_back(3);
+        alternativeHistory[1].push_back(2);
+        alternativeHistory[1].push_back(1);
+        alternativeHistory[1].push_back(2);
+
+        L = 3;        
+    } else {
+        // split the history into separate pieces
+        int half = horizon->size()/splits;
+        for (int split = 0; split < splits; split++) {
+            int start = split * half;
+            int end = (split + 1) * half;
+            if (split == splits-1)
+                end = horizon->size();
+            alternativeHistory.push_back(std::vector<int>()); // we have only a single history here, we could have more for parallel processing?
+            idx_attr.push_back(std::vector<int>());
+            for (int i = start; i < end; i++) {
+                std::string v = (*horizon)[i].getValue();
+                auto it = std::find(repeating_events_list.begin(), repeating_events_list.end(), v);
+                if (it != repeating_events_list.end()) {
+                    int idx = it - repeating_events_list.begin();
+                    alternativeHistory[split].push_back(idx+1);
+                    if (L < idx+1)
+                        L = idx+1;
+                    idx_attr[split].push_back(i); // store a time
+                }
+            }
+        }    
+    }
+
+    // now use SPMF to find pattern
+    // maybe easier to use the default: https://github.com/aminhn/HTMiner/blob/main/BDTrie/load_inst.cpp
+    patterns::Seq2pat algo = patterns::Seq2pat();
+    algo.M = alternativeHistory[0].size(); // Length of the largest sequence in items
+    for (int i = 1; i < alternativeHistory.size(); i++)
+        if (algo.M < alternativeHistory[i].size())
+            algo.M = alternativeHistory[i].size();
+    algo.N = alternativeHistory.size(); // Number of sequences in items
+    algo.L = L; //repeating_events_list.size(); // Maximum value in events list (number of repeating events)
+    algo.items = alternativeHistory;
+    algo.theta = 2; // algo.M * 0.00001; // 2; // at least observe twice
+    // no attributes, no constrains?
+    algo.attrs.push_back(idx_attr);
+    std::vector< std::vector<int> > erg = algo.mine();
+
+    // erg contains our pattern, print those now
+    for (int i = 0; i < erg.size(); i++) {
+        fprintf(stdout, "pattern %d, length: %zu, %d times\n", i, erg[i].size()-1, erg[i][erg[i].size()-1]);
+        for (int j = 0; j < erg[i].size()-1; j++) {
+            fprintf(stdout, "\t[%d] %s\n", j, repeating_events_list[erg[i][j]-1].c_str());
+        }
+    }
+
+    return events;
 }
