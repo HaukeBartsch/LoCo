@@ -104,6 +104,9 @@ class HistoryEntry : public set_base_hook<optimize_size<true> > {
         time_t tbt = std::mktime(&bt);
         // if the two times are equal we should compare the content as well (sort by value string)
         if (tat == tbt) { // std::mktime(&at) == std::mktime(&bt)) {
+            // TODO: we could add sorting here for events coming in from different originators (at the same time)
+            if (a.value_ == b.value_)
+                return a.originator_ < b.originator_;
             return a.value_ < b.value_;
         }
         return tat < tbt; // std::mktime(&at) < std::mktime(&bt);
@@ -114,6 +117,8 @@ class HistoryEntry : public set_base_hook<optimize_size<true> > {
         time_t tat = std::mktime(&at); // in case this is expensive to it only once
         time_t tbt = std::mktime(&bt);
         if (tat == tbt) { // std::mktime(&at) == std::mktime(&bt)) {
+            if (a.value_ == b.value_)
+                return a.originator_ > b.originator_;
             return a.value_ > b.value_;
         }
         return tat > tbt; // std::mktime(&at) > std::mktime(&bt);
@@ -124,7 +129,7 @@ class HistoryEntry : public set_base_hook<optimize_size<true> > {
         time_t tat = std::mktime(&at); // in case this is expensive to it only once
         time_t tbt = std::mktime(&bt);
         // two events are only equal if they have the same time and the same content (value)
-        return (tat == tbt) && (a.value_ == b.value_);
+        return (tat == tbt) && (a.value_ == b.value_) && (a.originator_ == b.originator_);
         //return (std::mktime(&at) == std::mktime(&bt)) && (a.value_ == b.value_);
     }
     std::string toString() {
@@ -310,7 +315,8 @@ void printHistory(history_t *history) {
 // Print out a specific section of the history.
 std::vector<HistoryEntry> getLocalHistory(history_t *history, int location, int window=3) {
     std::vector<HistoryEntry> entries;
-    history_t::iterator here(history->begin());
+    history_t::reverse_iterator here(history->rbegin());
+    // history_t::iterator here(history->begin());
 
     if (location < 0)
         location = history->size() - location;
@@ -353,8 +359,11 @@ std::vector<HistoryEntry> getLocalHistoryDuration(history_t *history, int locati
     here = history->begin();
     std::advance(here, location);
     mid_time = (*here).getTime();
-    mid_time.tm_sec += secondsAroundLocation;
+    mid_time.tm_sec += secondsAroundLocation+1;
     std::mktime(&mid_time); // should fix the overflow due to seconds added
+    // skip the mid location, already done in the previous loop
+    here = history->begin();
+    std::advance(here, location-1);
 
     // go backwards
     stop = HistoryEntry(mid_time, std::string(""), std::string(""), std::string(""));
@@ -362,7 +371,6 @@ std::vector<HistoryEntry> getLocalHistoryDuration(history_t *history, int locati
         entries.push_back(*here);
         here--;
     }
-
 
     return entries;
 }
@@ -463,12 +471,15 @@ std::vector<std::vector<HistoryEntry> > detectEvent(std::vector<HistoryEntry> *h
     algo.N = alternativeHistory.size(); // Number of sequences in items
     algo.L = L; //repeating_events_list.size(); // Maximum value in events list (number of repeating events)
     algo.items = alternativeHistory;
-    algo.theta = 2; // algo.M * 0.00001; // 2; // at least observe twice
+    algo.theta = splits; // algo.M * 0.00001; // 2; // at least observe twice
     // no attributes, no constrains?
     algo.attrs.push_back(idx_attr);
     std::vector< std::vector<int> > erg = algo.mine();
 
     // erg contains our pattern, print those now
+    if (erg.size() == 0) {
+        fprintf(stdout, "No pattern detected...\n");
+    }
     for (int i = 0; i < erg.size(); i++) {
         fprintf(stdout, "pattern %d, length: %zu, %d times\n", i, erg[i].size()-1, erg[i][erg[i].size()-1]);
         for (int j = 0; j < erg[i].size()-1; j++) {

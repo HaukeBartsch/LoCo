@@ -41,7 +41,7 @@ int main(int argc, char *argv[]) {
     summaryJSON["run_date_time"] = to_simple_string(timeLocal);
     
 
-    po::options_description desc("LoCo: Log combiner.\nExample:\n  LoCo --verbose data/*.log\nAllowed options");
+    po::options_description desc("LoCo: Log combiner and event detection.\nExample:\n  LoCo --verbose data/*.log\n\nA REPL allows you to search for pattern throughout the history. Specify which log-entry\n(percentage part 0..1 or index position if greater than 1) and how many history entries\n(percentage part 0..1 or absolute number or '<number>s' for seconds around the location.\n\nAllowed options");
     desc.add_options()
       ("help,h", "Print this help.")
       ("version,V", "Print the version number.")
@@ -67,7 +67,7 @@ int main(int argc, char *argv[]) {
         return 0;
     }
 
-    std::string versionString = std::string("0.0.1.") + boost::replace_all_copy(std::string(__DATE__), " ", ".");
+    std::string versionString = std::string("0.0.3.") + boost::replace_all_copy(std::string(__DATE__), " ", ".");
     if (vm.count("version")) {
         fprintf(stdout, "version: %s\n", versionString.c_str());
         return 0;
@@ -139,17 +139,27 @@ int main(int argc, char *argv[]) {
     }*/
 
     int location = history.size()/2;
+    fprintf(stdout, "Instructions: \n\t.15, 0.004\n");
+    add_history(".15, .004");
     int width = 360*60;
     std::string text;
     const char *line;
     while ((line = readline(">>> ")) != nullptr) {
         //cout << "[" << line << "]" << endl;
-        if (*line) 
+        if (line && *line) 
             add_history(line);
 
         float flocation = 0.0f;
         float fwidth = 1.0f;
-        sscanf(line, "%f, %f", &flocation, &fwidth);
+        bool timeUnits = true;
+        if (2 != sscanf(line, "%f, %fs", &flocation, &fwidth)) {
+            if (2 != sscanf(line, "%f, %f", &flocation, &fwidth)) {
+                fprintf(stdout, "Usage: .15, 0.004s (units of time) or .15, 0.004 (number of entries)\n"); 
+                std::free((void *)line);
+                continue;
+            }
+            timeUnits = false;
+        }
 
         if (flocation < 0)
             flocation = 1.0f;
@@ -158,19 +168,24 @@ int main(int argc, char *argv[]) {
         } else {
             location = flocation;
         }
-        if (fwidth < 1.0001f) {
+        if (fwidth < 0.9999f) {
             width = history.size() * fwidth;
         } else {
-            width = fwidth;
+            width = (int)fwidth;
         }
 
         if (location > history.size())
             location = history.size();
-        if (width < 0)
+        if (width < 1)
             width = 1; // in seconds
         fprintf(stdout, "run: %d %d\n", location, width);
         // get local history in seconds around an event
-        std::vector<HistoryEntry> localHistory2 = getLocalHistoryDuration(&history, location, width); // seconds around this element
+        std::vector<HistoryEntry> localHistory2;
+        if (timeUnits) {
+            localHistory2 = getLocalHistoryDuration(&history, location, width); // seconds around this element
+        } else {
+            localHistory2 = getLocalHistory(&history, location, width);
+        }
         fprintf(stdout, "Specific local time history entries [location: %d, width: %d]\n", location, width);
         for (int i = 0; i < localHistory2.size(); i++) {
             fprintf(stdout, "\t%d %s\n", i, localHistory2[i].toString().c_str());
@@ -178,6 +193,13 @@ int main(int argc, char *argv[]) {
 
         // see if we have repeating things
         detectEvent(&localHistory2);
+        fprintf(stdout, "run finished: %d %d\n", location, width);
+
+        // display the results
+        //    - use a stable animation: fixed location for individual items that repeat in generated pattern
+        //    - use animation to cycle through all local solutions
+        //    - use a rhythm to provide contextual order to repeat presentations in the sequence
+
 
         std::free((void *)line);
     }
