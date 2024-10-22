@@ -544,22 +544,51 @@ void displayPattern(std::vector<std::vector<std::string> > events, std::vector<i
     initscr();
     cbreak(); noecho();
     char cc[256];
+    timeout(0); // non-blocking
+    // clear the key cache
+    while(getch() != ERR)
+        ;
+    //start_color();
+    //init_pair(1, COLOR_YELLOW, COLOR_WHITE);
+    //init_pair(2, COLOR_BLACK, COLOR_WHITE);
+    bool break_now = false;
     while (true) {
-        usleep(200);
+        int c = 0;
+        usleep(500000); // microseconds
         clear();
+
         refresh();
         for (int i = 0; i < events.size(); i++) {
             clear();
-            move(10-1,5);
-            snprintf(cc, 256, "[%03d]", i);
+            move(1,1);
+            snprintf(cc, 256, "[%03d]", i+1);
             printw(cc);
             for (int j = 0; j < events[i].size(); j++) {
-                move(10+j,5);
+                move(10+j+patternShift[i],5);
+                // print using escape sequences
+                //snprintf(cc, 256, "%s", events[i][j].c_str());
+                //if (j > events[0].size()) {
+                //    attron(COLOR_PAIR(1));
+                //} else 
+                //    attron(COLOR_PAIR(2));
+
                 printw(events[i][j].c_str());
+                //printw(cc);
+                //if (j > events[0].size()) {
+                //    attroff(COLOR_PAIR(1));
+                //} else
+                //    attroff(COLOR_PAIR(2));
+
             }
             refresh();
-            usleep(200);
+            usleep(10000);
+            if (getch() != ERR) {
+                break_now = true;
+                break; // any character will cancel the display
+            }
         }
+        if (break_now)
+            break;
     }
 
     endwin();

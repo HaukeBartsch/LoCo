@@ -21,8 +21,8 @@ namespace po = boost::program_options;
 namespace fs = std::filesystem;
 
 bool verbose = false;
-int numSplits = 3;
-int limit = 20;
+int numSplits = 6;
+int limit = 10;
 int minNumberOfObservations = numSplits;
 int maxNumberOfPattern = 1000;
 std::string cmd("");
@@ -115,8 +115,8 @@ int main(int argc, char *argv[]) {
     po::options_description desc("LoCo: Log combiner and event detection.\n\nExample:\n  LoCo --verbose data/*.log\n  >>> 7, 3\n\nA REPL allows you to search for pattern throughout the history. Specify a center log-entry\nas proportion 0..1 or index position if greater than 1 and how many history entries\nas proportion 0..1 or absolute number or '<number>s' for seconds around the location.\n\nAllowed options");
     desc.add_options()
       ("help,h", "Print this help.")
-      ("numSplits,s", po::value< int >(&numSplits), "Number of splits used to represent single history as sequences [3].")
-      ("limit,l", po::value< int >(&limit), "Limit the maximum distance allowed between log entries [20].")
+      ("numSplits,s", po::value< int >(&numSplits), "Number of splits used to represent single history as sequences [6].")
+      ("limit,l", po::value< int >(&limit), "Limit the maximum distance allowed between log entries [10].")
       ("minNumberOfObservations,m", po::value< int >(&minNumberOfObservations), "An event has to occur at least that many times [3]. Can be set the same as numSplits.")
       ("maxNumberOfPattern,e", po::value< int >(&maxNumberOfPattern), "Some logs can produce a very large number of pattern, stop generating more if you reach this limit [1000].")
       ("cmd,c", po::value< std::string >(&cmd), "Run this command [.5 300].")
@@ -217,7 +217,7 @@ int main(int argc, char *argv[]) {
     // use a REPL for user interaction
     int location = history.size()/2;
     fprintf(stdout, "Instructions: \n\t.5, 0.0004\n");
-    add_history(".5, .0004");
+    add_history(cmd.c_str());
     int width = 360*60;
     std::string text;
     const char *line;
@@ -258,7 +258,7 @@ int main(int argc, char *argv[]) {
 
         // see if we have repeating things
         std::pair< std::vector<std::vector< std::string > >, std::vector<int> > res = detectEvent(&localHistory2, numSplits, limit, minNumberOfObservations, maxNumberOfPattern);
-        if (display) {
+        if (display && res.first.size() > 0) {
             displayPattern(res.first, res.second);
         }
         fprintf(stdout, "↑ location %d/%zu with window ±%d\n", location, history.size(), width);
