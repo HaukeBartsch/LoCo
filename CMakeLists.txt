@@ -28,9 +28,10 @@ ELSE(LIBZIP_FOUND)
 ENDIF()
 
 find_package(READLINE)
+find_package(NCURSES)
 
 # target_link_libraries(your_target ${Boost_LIBRARIES})
 add_executable(LoCo LoCo.cpp history.hpp backend/seq2pat.hpp backend/seq2pat.cpp)
 target_include_directories(LoCo PUBLIC backend)
-target_link_libraries(LoCo ${Boost_LIBRARIES} TBB::tbb READLINE)
+target_link_libraries(LoCo ${Boost_LIBRARIES} TBB::tbb READLINE NCURSES)
 

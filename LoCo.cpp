@@ -9,6 +9,7 @@
 #include <boost/date_time.hpp>
 #include <boost/filesystem.hpp>
 #include "history.hpp"
+#include <regex>
 
 #include "readline/readline.h"
 #include "readline/history.h"
@@ -20,6 +21,11 @@ namespace po = boost::program_options;
 namespace fs = std::filesystem;
 
 bool verbose = false;
+int numSplits = 3;
+int limit = 20;
+int minNumberOfObservations = numSplits;
+int maxNumberOfPattern = 1000;
+std::string cmd("");
 json summaryJSON;
 
 
@@ -33,6 +39,71 @@ void addToImportedTime(file_entry_t *entry, int seconds) {
     (*entry).last_imported_time = (*entry).last_write_time + std::chrono::duration_cast<std::chrono::seconds>(duration);
 }
 
+std::vector<std::pair<int, bool> > parseInstruction(std::string line, history_t *history) {
+    std::vector< std::pair<int, bool> > result;
+    result.push_back(std::make_pair(0, false)); // store location
+    result.push_back(std::make_pair(0, false)); // store width
+    result.push_back(std::make_pair(0, false)); // store timeUnit (seconds or absolution number)
+    
+    float flocation = .15;
+    float fwidth = 0.004;
+    int location, width;
+    bool timeUnits = false;
+
+        std::smatch sm;
+        const std::regex e ("([0-9.]+)[, ]+([0-9.]+)s");
+        std::string line_as_std(line);
+        std::regex_match (line_as_std,sm,e);
+        if (sm.size() == 3) {
+            std::ssub_match sub_match = sm[1];
+            sscanf(sub_match.str().c_str(), "%f", &flocation);
+            sub_match = sm[2];
+            sscanf(sub_match.str().c_str(), "%f", &fwidth);
+            //2 == sscanf(line, "%f, %fs", &flocation, &fwidth)) {
+            timeUnits = true;
+        }
+        if (!timeUnits) { // try to read in with an appended -s
+            const std::regex e2("([0-9.]+)[, ]+([0-9.]+)");
+            std::string line_as_std2(line);
+            std::regex_match (line_as_std2,sm,e2);
+            if (sm.size() == 3) { // 2 == sscanf(line, "%f, %f", &flocation, &fwidth)) {
+                std::ssub_match sub_match = sm[1];
+                sscanf(sub_match.str().c_str(), "%f", &flocation);
+                sub_match = sm[2];
+                sscanf(sub_match.str().c_str(), "%f", &fwidth);
+                timeUnits = false;
+            } else {
+                return result; 
+            }
+        }
+
+        if (flocation < 0)
+            flocation = 1.0f;
+        if (flocation < 1.0001f) {
+            location = history->size() * flocation;
+        } else {
+            location = flocation;
+        }
+        if (fwidth < 0.9999f) {
+            width = history->size() * fwidth;
+        } else {
+            width = (int)fwidth;
+        }
+
+        if (location > history->size())
+            location = history->size()-1;
+        if (width < 1)
+            width = 1; // in seconds
+
+    result[0].first = location;
+    result[0].second = true;
+    result[1].first = width;
+    result[1].second = true;
+    result[2].second = timeUnits;
+
+    return result;   
+}
+
 
 int main(int argc, char *argv[]) {
     setlocale(LC_NUMERIC, "en_US.utf-8");
@@ -41,12 +112,17 @@ int main(int argc, char *argv[]) {
     summaryJSON["run_date_time"] = to_simple_string(timeLocal);
     
 
-    po::options_description desc("LoCo: Log combiner and event detection.\nExample:\n  LoCo --verbose data/*.log\n\nA REPL allows you to search for pattern throughout the history. Specify which log-entry\n(percentage part 0..1 or index position if greater than 1) and how many history entries\n(percentage part 0..1 or absolute number or '<number>s' for seconds around the location.\n\nAllowed options");
+    po::options_description desc("LoCo: Log combiner and event detection.\n\nExample:\n  LoCo --verbose data/*.log\n  >>> 7, 3\n\nA REPL allows you to search for pattern throughout the history. Specify a center log-entry\nas proportion 0..1 or index position if greater than 1 and how many history entries\nas proportion 0..1 or absolute number or '<number>s' for seconds around the location.\n\nAllowed options");
     desc.add_options()
       ("help,h", "Print this help.")
+      ("numSplits,s", po::value< int >(&numSplits), "Number of splits used to represent single history as sequences [3].")
+      ("limit,l", po::value< int >(&limit), "Limit the maximum distance allowed between log entries [20].")
+      ("minNumberOfObservations,m", po::value< int >(&minNumberOfObservations), "An event has to occur at least that many times [3]. Can be set the same as numSplits.")
+      ("maxNumberOfPattern,e", po::value< int >(&maxNumberOfPattern), "Some logs can produce a very large number of pattern, stop generating more if you reach this limit [1000].")
+      ("cmd,c", po::value< std::string >(&cmd), "Run this command [.5 300].")
       ("version,V", "Print the version number.")
       ("verbose,v", po::bool_switch(&verbose), "Print more verbose output during processing.")
-      ("logfiles", po::value< vector<string> >(), "log file")
+      ("logfiles", po::value< vector<string> >(), "Log files, either folder or list of .log files. We assume that log entries are prefixed with 'Y-m-d H:M:S:'.")
     ;
     // allow positional arguments to map to logfiles
     po::positional_options_description p;
@@ -120,7 +196,7 @@ int main(int argc, char *argv[]) {
     history_t history;
     for (int i = 0; i < log_files.size(); i++) {
         if (verbose)
-            fprintf(stderr, "Reading in %s\n", log_files[i].filename.c_str());
+            fprintf(stderr, "Reading %s\n", log_files[i].filename.c_str());
         updateHistory(&history, &(log_files[i]));
     }
     // upload yet again (hopefully no duplicates now)
@@ -138,47 +214,36 @@ int main(int argc, char *argv[]) {
         fprintf(stdout, "\t%d %s\n", i-3, localHistory[i].toString().c_str());
     }*/
 
+    // use a REPL for user interaction
     int location = history.size()/2;
-    fprintf(stdout, "Instructions: \n\t.15, 0.004\n");
-    add_history(".15, .004");
+    fprintf(stdout, "Instructions: \n\t.5, 0.0004\n");
+    add_history(".5, .0004");
     int width = 360*60;
     std::string text;
     const char *line;
+    bool display = false;
     while ((line = readline(">>> ")) != nullptr) {
         //cout << "[" << line << "]" << endl;
         if (line && *line) 
             add_history(line);
-
-        float flocation = 0.0f;
-        float fwidth = 1.0f;
-        bool timeUnits = true;
-        if (2 != sscanf(line, "%f, %fs", &flocation, &fwidth)) {
-            if (2 != sscanf(line, "%f, %f", &flocation, &fwidth)) {
-                fprintf(stdout, "Usage: .15, 0.004s (units of time) or .15, 0.004 (number of entries)\n"); 
-                std::free((void *)line);
-                continue;
-            }
-            timeUnits = false;
+        if (std::string(line) == "display") { // toggle the display option
+            display = !display;
+            fprintf(stdout, "display is now: %s\n", display?"on":"off");
+            std::free((void *)line);
+            continue; 
         }
 
-        if (flocation < 0)
-            flocation = 1.0f;
-        if (flocation < 1.0001f) {
-            location = history.size() * flocation;
-        } else {
-            location = flocation;
+        auto parsed = parseInstruction(std::string(line), &history);
+        if (!parsed[0].second || !parsed[1].second) {
+            fprintf(stdout, "Usage: .5, 0.004s (units of time) or .15, 0.004 (number of entries)\n");
+            std::free((void*)line);
+            continue; // try again
         }
-        if (fwidth < 0.9999f) {
-            width = history.size() * fwidth;
-        } else {
-            width = (int)fwidth;
-        }
+        location = parsed[0].first;
+        width = parsed[1].first;
+        bool timeUnits = parsed[2].second;
 
-        if (location > history.size())
-            location = history.size();
-        if (width < 1)
-            width = 1; // in seconds
-        fprintf(stdout, "run: %d %d\n", location, width);
+        fprintf(stdout, "location %d with window ±%d\n", location, width);
         // get local history in seconds around an event
         std::vector<HistoryEntry> localHistory2;
         if (timeUnits) {
@@ -188,12 +253,15 @@ int main(int argc, char *argv[]) {
         }
         fprintf(stdout, "Specific local time history entries [location: %d, width: %d]\n", location, width);
         for (int i = 0; i < localHistory2.size(); i++) {
-            fprintf(stdout, "\t%d %s\n", i, localHistory2[i].toString().c_str());
+            fprintf(stdout, "  %03d %s\n", i+1, localHistory2[i].toString().c_str());
         }
 
         // see if we have repeating things
-        detectEvent(&localHistory2);
-        fprintf(stdout, "run finished: %d %d\n", location, width);
+        std::pair< std::vector<std::vector< std::string > >, std::vector<int> > res = detectEvent(&localHistory2, numSplits, limit, minNumberOfObservations, maxNumberOfPattern);
+        if (display) {
+            displayPattern(res.first, res.second);
+        }
+        fprintf(stdout, "↑ location %d/%zu with window ±%d\n", location, history.size(), width);
 
         // display the results
         //    - use a stable animation: fixed location for individual items that repeat in generated pattern

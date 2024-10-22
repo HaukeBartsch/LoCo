@@ -8,7 +8,7 @@
 #include <functional>
 #include <cassert>
 #include "backend/seq2pat.hpp"
-
+#include <ncurses.h>
 
 extern bool verbose;
 
@@ -139,7 +139,9 @@ class HistoryEntry : public set_base_hook<optimize_size<true> > {
         return erg;
     }
     std::string getOriginator() {
-        return originator_;
+        // instead return the filename only (assume that path is not important)
+        boost::filesystem::path p(originator_);
+        return p.stem().c_str();
     }
     std::string getType() {
         return type_;
@@ -287,7 +289,7 @@ void updateHistory(history_t *history, file_entry_t *log_file) {
         if (verbose && ((numLinesParsedNow + numLinesNotParsedNow) % 100) == 0) {
             int spinner_c = numLinesParsedNow + numLinesNotParsedNow;
             // ("\033[A\033[2K\033[94;49m%s%d\033[37m [%.0f files / s] P %d S %d S %d [S %d]\033[39m\033[49m\n", spinner[(spinner_c)%len(spinner)], counter, (float64(counter))/time.Since(startTime).Seconds(), numPatients, numStudies, numSeries, counterError)
-            fprintf(stdout, "\033[A\033[2K\033[94;49m%s%d\033[37m [parsed %d lines, (skipped %d)]\033[39m\033[49m\n", spinner[(spinner_c/100)%(spinner.size())].c_str(), spinner_c, numLinesParsedNow, numLinesNotParsedNow);
+            fprintf(stdout, "\033[A\033[2K\033[94;49m%s%d\033[37m parsed %d lines, skipped %d\033[39m\033[49m\n", spinner[(spinner_c/100)%(spinner.size())].c_str(), spinner_c, numLinesParsedNow, numLinesNotParsedNow);
         }
     }
     // add them to the history (should be sorted now)
@@ -308,11 +310,11 @@ void updateHistory(history_t *history, file_entry_t *log_file) {
 void printHistory(history_t *history) {
     history_t::reverse_iterator rbit(history->rbegin());
     for (int i = 0; rbit != history->rend(); ++rbit, i++) {
-        fprintf(stdout, "H-%02d %s\n", i, (*rbit).toString().c_str());
+        fprintf(stdout, "H-%02d %s\n", i+1, (*rbit).toString().c_str());
     }
 }
 
-// Print out a specific section of the history.
+// Print out a specific section of the history with a symmetric window.
 std::vector<HistoryEntry> getLocalHistory(history_t *history, int location, int window=3) {
     std::vector<HistoryEntry> entries;
     history_t::reverse_iterator here(history->rbegin());
@@ -324,10 +326,14 @@ std::vector<HistoryEntry> getLocalHistory(history_t *history, int location, int 
     if (window < 0)
         window = -window;
 
-    if (history->size() <= location + window)
-        return entries;
-    if (history->size()-window < 0)
-        return entries;
+    if (history->size() <= location + window) {
+        // do the best we can
+        window = history->size() - location - 1;
+    }
+    if (history->size()-window < 0) {
+        // do the best we can
+        window = location - 1;
+    }
 
     std::advance(here, location - window);
     for (int i = 0; i < window*2 + 1; i++) {
@@ -375,11 +381,59 @@ std::vector<HistoryEntry> getLocalHistoryDuration(history_t *history, int locati
     return entries;
 }
 
-// find unique sequences of events that repeat at least N times (more than by chance?)
-// use: time codes for same, before and after
-std::vector<std::vector<HistoryEntry> > detectEvent(std::vector<HistoryEntry> *horizon) {
+// do a simple alignment and compute the best matching fit
+std::vector<int> computePatternShift(std::vector< std::vector<int> > erg) {
+    std::vector<int> result(erg.size());
+    if (erg.size() == 0)
+        return result;
+
+    int bestShift = 0;
+    int bestShiftVal = 0;
+    result[0] = 0; // no shift with itself
+    for (int i = 1; i < erg.size(); i++) { // next pattern
+        // shift to the next pattern
+        int j = 0; // always compare with first pattern
+        int bestShift = 0;
+        float bestSumChange = 0.0;
+        int startShift = -(int)(erg[j].size()-1)/2;
+        for (int shift = startShift; shift < (int)erg[i].size()-1; shift++) { // do not count same pattern
+            int sumChange = 0;
+            int comparisons = 0;
+            for (int c = 0; c < erg[j].size()-1; c++) {
+                int idx = c + shift;
+                if (idx < 0)
+                    continue;
+                if (idx > erg[i].size()-1)
+                    continue;
+                int a = erg[i][idx];
+                int b = erg[j][c];
+                sumChange += (a!=b?1:0);
+                comparisons++;
+            }
+            float sc = sumChange/(comparisons>0?(float)comparisons:1.0f);
+            if (shift == startShift) { // init the values
+                bestShift = shift;
+                bestSumChange = sc;
+            } else {
+                if (bestSumChange > sc) {
+                    bestShift = shift;
+                    bestSumChange = sc;
+                }
+            }
+        }
+        result[i] = bestShift;
+    }
+    return result;
+}
+
+
+// Find unique sequences of events that repeat at least minNumberObservations times.
+// - numSplits[3]: split the single long history into equal length chunks of repeating events
+// - limit[20]: maximum allowed distance between log entries (in merged log history)
+// - minNumberOfObservations[3]: can be set the same as numSplits
+std::pair<std::vector<std::vector< std::string > >, std::vector<int> > detectEvent(std::vector<HistoryEntry> *horizon, int numSplits = 3, int limit = 20, int minNumberObservations = 3, int maxNumberOfPattern = 10000) {
     // return a number of events that happen more than once
-    std::vector<std::vector<HistoryEntry> > events;
+    std::vector<std::vector<std::string> > events;
     std::vector<std::string> repeating_events_list;
 
     // create a list of repeating events (based on string comparisons)
@@ -393,9 +447,13 @@ std::vector<std::vector<HistoryEntry> > detectEvent(std::vector<HistoryEntry> *h
         }
     };
 
+    bool valuePlusOriginator = true;
+
     std::map<std::string, int, cmpByEditDistance> repeatingEvents;
     for (int i = 0; i < horizon->size(); i++) {
         std::string v = (*horizon)[i].getValue();
+        if (valuePlusOriginator) 
+            v += std::string(" [") + (*horizon)[i].getOriginator() + std::string("]");
         if (repeatingEvents.find( v ) == repeatingEvents.end())
             repeatingEvents.insert(std::pair<std::string, int>(v, 0));
         repeatingEvents.insert(std::pair<std::string, int>(v, ++repeatingEvents[v]));
@@ -407,58 +465,37 @@ std::vector<std::vector<HistoryEntry> > detectEvent(std::vector<HistoryEntry> *h
         it++;
     }
     if (verbose)
-        fprintf(stdout, "%zu unique events, repeating events in this batch: %zu\n", repeatingEvents.size(), repeating_events_list.size());
+        fprintf(stdout, "%zu unique event%s, repeating events in this batch: %zu\n", repeatingEvents.size(), (repeatingEvents.size()!=1?"s":""), repeating_events_list.size());
 
     // create an alternative history based on our repeating events only, store position in repeating_events_list as identity of the string
     std::vector<std::vector<int> > alternativeHistory;
     std::vector<std::vector<int> > idx_attr;
     bool testing = false;
     int L = 0; // max value in history
-    int splits = 3; // make 3 sequences out of history, store in alternativeHistory
-    if (testing) {
-        alternativeHistory.push_back(std::vector<int>());
-        alternativeHistory[0].push_back(1);
-        alternativeHistory[0].push_back(2);
-        alternativeHistory[0].push_back(1);
-        alternativeHistory[0].push_back(2);
-        alternativeHistory[0].push_back(3);
-        alternativeHistory[0].push_back(2);
-        alternativeHistory[0].push_back(1);
-        alternativeHistory[0].push_back(2);
-
-        alternativeHistory.push_back(std::vector<int>());
-        alternativeHistory[1].push_back(1);
-        alternativeHistory[1].push_back(2);
-        alternativeHistory[1].push_back(1);
-        alternativeHistory[1].push_back(2);
-        alternativeHistory[1].push_back(3);
-        alternativeHistory[1].push_back(2);
-        alternativeHistory[1].push_back(1);
-        alternativeHistory[1].push_back(2);
-
-        L = 3;        
-    } else {
-        // split the history into separate pieces
-        int half = horizon->size()/splits;
-        for (int split = 0; split < splits; split++) {
-            int start = split * half;
-            int end = (split + 1) * half;
-            if (split == splits-1)
-                end = horizon->size();
-            alternativeHistory.push_back(std::vector<int>()); // we have only a single history here, we could have more for parallel processing?
-            idx_attr.push_back(std::vector<int>());
-            for (int i = start; i < end; i++) {
-                std::string v = (*horizon)[i].getValue();
-                auto it = std::find(repeating_events_list.begin(), repeating_events_list.end(), v);
-                if (it != repeating_events_list.end()) {
-                    int idx = it - repeating_events_list.begin();
-                    alternativeHistory[split].push_back(idx+1);
-                    if (L < idx+1)
-                        L = idx+1;
-                    idx_attr[split].push_back(i); // store a time
-                }
+    int splits = numSplits; // make 3 sequences out of history, store in alternativeHistory
+    int counter = 0;
+    // split the history into separate pieces
+    int half = horizon->size()/splits;
+    for (int split = 0; split < splits; split++) {
+        int start = split * half;
+        int end = (split + 1) * half;
+        if (split == splits-1)
+            end = horizon->size();
+        alternativeHistory.push_back(std::vector<int>()); // we have only a single history here, we could have more for parallel processing?
+        idx_attr.push_back(std::vector<int>());
+        for (int i = start; i < end; i++) {
+            std::string v = (*horizon)[i].getValue();
+            if (valuePlusOriginator)
+                v += std::string(" [") + (*horizon)[i].getOriginator() + std::string("]");
+            auto it = std::find(repeating_events_list.begin(), repeating_events_list.end(), v);
+            if (it != repeating_events_list.end()) {
+                int idx = it - repeating_events_list.begin();
+                alternativeHistory[split].push_back(idx+1);
+                if (L < idx+1)
+                    L = idx+1;
+                idx_attr[split].push_back(counter++); // store a time, TODO: what happens if we do not find the event in the list, in that case i gets updated and we have a gap here, best to use a separate counter.. 
             }
-        }    
+        }
     }
 
     // now use SPMF to find pattern
@@ -471,21 +508,59 @@ std::vector<std::vector<HistoryEntry> > detectEvent(std::vector<HistoryEntry> *h
     algo.N = alternativeHistory.size(); // Number of sequences in items
     algo.L = L; //repeating_events_list.size(); // Maximum value in events list (number of repeating events)
     algo.items = alternativeHistory;
-    algo.theta = splits; // algo.M * 0.00001; // 2; // at least observe twice
+    algo.theta = minNumberObservations; // algo.M * 0.00001; // 2; // at least observe twice
     // no attributes, no constrains?
+    algo.tot_gap.push_back(1); // not sure why we define this... its needed to have the ugap test apply
     algo.attrs.push_back(idx_attr);
+    //algo.lgapi.push_back(0); // which attribute to use
+    //algo.lgap.push_back(limit); // try to fix this again
+    algo.ugapi.push_back(0); // what attr value to use
+    algo.ugap.push_back(limit); // max distance in number of entries between log entries (speed improvement)
+    algo.max_number_of_pattern = maxNumberOfPattern;
     std::vector< std::vector<int> > erg = algo.mine();
 
     // erg contains our pattern, print those now
     if (erg.size() == 0) {
-        fprintf(stdout, "No pattern detected...\n");
+        fprintf(stdout, "\033[31mNo pattern detected...\033[0m\n");
     }
+    std::vector<int> patternShift = computePatternShift(erg);
+
     for (int i = 0; i < erg.size(); i++) {
-        fprintf(stdout, "pattern %d, length: %zu, %d times\n", i, erg[i].size()-1, erg[i][erg[i].size()-1]);
-        for (int j = 0; j < erg[i].size()-1; j++) {
-            fprintf(stdout, "\t[%d] %s\n", j, repeating_events_list[erg[i][j]-1].c_str());
+        events.push_back(std::vector<std::string>());
+        fprintf(stdout, "pattern \033[32m%02d\033[0m, length: %zu, %d times\n", i+1, erg[i].size()-1, erg[i][erg[i].size()-1]);
+        for (int j = 0; j < erg[i].size()-1; j++) { // last element is number of matches, don't display that one
+            // where is the best match?
+            int match_location = patternShift[i];
+            fprintf(stdout, "\t%s[%d] %s\n", (j==match_location?"*":" "), j+1, repeating_events_list[erg[i][j]-1].c_str());
+            events[events.size()-1].push_back(repeating_events_list[erg[i][j]-1]);
         }
     }
 
-    return events;
+    return std::make_pair(events, patternShift);
+}
+
+void displayPattern(std::vector<std::vector<std::string> > events, std::vector<int> patternShift) {
+    // use ncurses to display the pattern until we kill it
+    initscr();
+    cbreak(); noecho();
+    char cc[256];
+    while (true) {
+        usleep(200);
+        clear();
+        refresh();
+        for (int i = 0; i < events.size(); i++) {
+            clear();
+            move(10-1,5);
+            snprintf(cc, 256, "[%03d]", i);
+            printw(cc);
+            for (int j = 0; j < events[i].size(); j++) {
+                move(10+j,5);
+                printw(events[i][j].c_str());
+            }
+            refresh();
+            usleep(200);
+        }
+    }
+
+    endwin();
 }
