@@ -572,7 +572,7 @@ void displayPattern(std::vector<std::vector<std::string> > events, std::vector<i
                 //} else 
                 //    attron(COLOR_PAIR(2));
 
-                printw(events[i][j].c_str());
+                printw(events[i][j].substr(0, 80).c_str());
                 //printw(cc);
                 //if (j > events[0].size()) {
                 //    attroff(COLOR_PAIR(1));

@@ -222,52 +222,83 @@ int main(int argc, char *argv[]) {
     std::string text;
     const char *line;
     bool display = false;
+    bool saveToFile = false;
+    std::string saveToFileFilename("");
     while ((line = readline(">>> ")) != nullptr) {
-        //cout << "[" << line << "]" << endl;
         if (line && *line) 
             add_history(line);
-        if (std::string(line) == "display") { // toggle the display option
-            display = !display;
-            fprintf(stdout, "display is now: %s\n", display?"on":"off");
-            std::free((void *)line);
-            continue; 
-        }
 
-        auto parsed = parseInstruction(std::string(line), &history);
-        if (!parsed[0].second || !parsed[1].second) {
-            fprintf(stdout, "Usage: .5, 0.004s (units of time) or .15, 0.004 (number of entries)\n");
-            std::free((void*)line);
-            continue; // try again
-        }
-        location = parsed[0].first;
-        width = parsed[1].first;
-        bool timeUnits = parsed[2].second;
+        // we might have more than one command in a line, lets split with ";"
+        std::vector<std::string> strs;
+        boost::split(strs, std::string(line), boost::is_any_of(";"));
+        for (int cmd_idx = 0; cmd_idx < strs.size(); cmd_idx++) {
+            std::string cmd = strs[cmd_idx];
+            boost::algorithm::trim(cmd);
+           //cout << "[" << line << "]" << endl;
+            if (std::string(cmd) == "display") { // toggle the display option
+                display = !display;
+                fprintf(stdout, "display is now: %s\n", display?"on":"off");
+                // std::free((void *)line);
+                continue; 
+            }
+            // check if we want to save the result to a file
+            std::regex word_regex("save ([\\w.]+)");
+            std::smatch sm;
+            std::regex_match (cmd, sm, word_regex);
+            if (sm.size() == 2) {
+                std::ssub_match sub_match = sm[1];
+                fprintf(stdout, "save result to: \"%s\"\n", sub_match.str().c_str());
+                saveToFileFilename = sub_match.str();
+                saveToFile = true;
+            }
 
-        fprintf(stdout, "location %d with window ±%d\n", location, width);
-        // get local history in seconds around an event
-        std::vector<HistoryEntry> localHistory2;
-        if (timeUnits) {
-            localHistory2 = getLocalHistoryDuration(&history, location, width); // seconds around this element
-        } else {
-            localHistory2 = getLocalHistory(&history, location, width);
-        }
-        fprintf(stdout, "Specific local time history entries [location: %d, width: %d]\n", location, width);
-        for (int i = 0; i < localHistory2.size(); i++) {
-            fprintf(stdout, "  %03d %s\n", i+1, localHistory2[i].toString().c_str());
-        }
+            auto parsed = parseInstruction(std::string(cmd), &history);
+            if (!parsed[0].second || !parsed[1].second) {
+                fprintf(stdout, "Usage: .5, 0.004s (units of time) or .15, 0.004 (number of entries)\n");
+                //std::free((void*)line);
+                continue; // try again
+            }
+            location = parsed[0].first;
+            width = parsed[1].first;
+            bool timeUnits = parsed[2].second;
 
-        // see if we have repeating things
-        std::pair< std::vector<std::vector< std::string > >, std::vector<int> > res = detectEvent(&localHistory2, numSplits, limit, minNumberOfObservations, maxNumberOfPattern);
-        if (display && res.first.size() > 0) {
-            displayPattern(res.first, res.second);
+            fprintf(stdout, "location %d with window ±%d\n", location, width);
+            // get local history in seconds around an event
+            std::vector<HistoryEntry> localHistory2;
+            if (timeUnits) {
+                localHistory2 = getLocalHistoryDuration(&history, location, width); // seconds around this element
+            } else {
+                localHistory2 = getLocalHistory(&history, location, width);
+            }
+            fprintf(stdout, "Specific local time history entries [location: %d, width: %d]\n", location, width);
+            for (int i = 0; i < localHistory2.size(); i++) {
+                fprintf(stdout, "  %03d %s\n", i+1, localHistory2[i].toString().c_str());
+            }
+
+            // see if we have repeating things
+            std::pair< std::vector<std::vector< std::string > >, std::vector<int> > res = detectEvent(&localHistory2, numSplits, limit, minNumberOfObservations, maxNumberOfPattern);
+            if (saveToFile) {
+                // store result in file
+                json result = json::array();
+                for (int i = 0; i < res.first.size(); i++) {
+                    result[i] = json::array();
+                    for (int j = 0; j < res.first[i].size(); j++) {
+                        result[i].push_back(res.first[i][j]);
+                    }
+                }
+                std::ofstream file(saveToFileFilename);
+                file << std::setw(4) << result << std::endl;
+            }
+            if (display && res.first.size() > 0) {
+                displayPattern(res.first, res.second);
+            }
+            fprintf(stdout, "↑ location %d/%zu with window ±%d\n", location, history.size(), width);
+
+            // display the results
+            //    - use a stable animation: fixed location for individual items that repeat in generated pattern
+            //    - use animation to cycle through all local solutions
+            //    - use a rhythm to provide contextual order to repeat presentations in the sequence
         }
-        fprintf(stdout, "↑ location %d/%zu with window ±%d\n", location, history.size(), width);
-
-        // display the results
-        //    - use a stable animation: fixed location for individual items that repeat in generated pattern
-        //    - use animation to cycle through all local solutions
-        //    - use a rhythm to provide contextual order to repeat presentations in the sequence
-
 
         std::free((void *)line);
     }
