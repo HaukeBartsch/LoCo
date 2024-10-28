@@ -92,4 +92,4 @@ The testdata/ folder contains a script (createTestData01.py) that can be used to
 
 We can 'merge-.sh' these stories by successively merging 25 neighboring images. The sequence of those merged images can be played back at an arbitrary frame rate of 2,200 frames per second (see ffmpeg).
 
-![example movie](https://github.com/HaukeBartsch/LoCo/blob/main/images/movie.mp4)
+<video src='https://github.com/HaukeBartsch/LoCo/blob/main/images/movie.mp4' width=180 />
