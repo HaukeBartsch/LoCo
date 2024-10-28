@@ -233,8 +233,8 @@ int main(int argc, char *argv[]) {
         boost::split(strs, std::string(line), boost::is_any_of(";"));
         for (int cmd_idx = 0; cmd_idx < strs.size(); cmd_idx++) {
             std::string cmd = strs[cmd_idx];
-            boost::algorithm::trim(cmd);
-           //cout << "[" << line << "]" << endl;
+            boost::algorithm::trim(cmd); // remove leading and trailing spaces
+
             if (std::string(cmd) == "display") { // toggle the display option
                 display = !display;
                 fprintf(stdout, "display is now: %s\n", display?"on":"off");
@@ -250,6 +250,12 @@ int main(int argc, char *argv[]) {
                 fprintf(stdout, "save result to: \"%s\"\n", sub_match.str().c_str());
                 saveToFileFilename = sub_match.str();
                 saveToFile = true;
+                continue;
+            } else if (sm.size() == 3) {
+                saveToFileFilename = "";
+                saveToFile = false;
+                fprintf(stdout, "disable save\n");
+                continue;
             }
 
             auto parsed = parseInstruction(std::string(cmd), &history);
@@ -278,7 +284,7 @@ int main(int argc, char *argv[]) {
             // see if we have repeating things
             std::pair< std::vector<std::vector< std::string > >, std::vector<int> > res = detectEvent(&localHistory2, numSplits, limit, minNumberOfObservations, maxNumberOfPattern);
             if (saveToFile) {
-                // store result in file
+                // store result in a file, TODO: use the shift variable for vertical alignment
                 json result = json::array();
                 for (int i = 0; i < res.first.size(); i++) {
                     result[i] = json::array();

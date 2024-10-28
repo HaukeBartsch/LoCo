@@ -11,6 +11,7 @@ This is a visualization project.
 - sequential event detection based on a location and time window in the log stream
 - display of detected events as text
 - example script to generate (random) log files
+- display of detected events as series of png images, ffmpeg to render them to a movie
 
 ![example display of 1,000 detected events](https://github.com/HaukeBartsch/LoCo/blob/main/images/14seconds.gif)
 
@@ -22,7 +23,8 @@ Technological limit: That one is easy(-er). Nothing prevents us from creating a 
 
 Perceptual limit: Lets start slow and ramp up. We would like to reach a speed of 1,000 images per second - just because those are round numbers. This is of course trivial if all 1,000 images are the same (**depends on content**). If all the images are different we would have a harder time to see/detect/distinguish them. It could work, if the 1,000 images are all 1 pixel large and arranged in a grid. We would see them as one 32 x 32 image made up out of 1,000 pixel. What if it is instead 2 complex and large images that appear in a repeated sequence - at 1,000 images per second. In that case sorting the images would allow us to 'see' them 'better', the first half second we see the first, the second half second we see the second (**depends on order**).
 
-See render_char_to_28x28 for freetype implementation of text to image.
+We could use a sound equivalent of 'compression' - to get a sound from vision. Lets say that our medium to display text provides the barriers. LatticeBoltzmann perhaps? Pixel interactions? Interference? White paper as a substrate. A pixel in black as a solid block, alpha as squishy-ness? 
+
 
 ## Debug builds
 
@@ -74,3 +76,20 @@ Allowed options:
                                        files. We assume that log entries are 
                                        prefixed with 'Y-m-d H:M:S:'.
 ```
+
+Starting the program will start a REPL which accepts some special commands:
+
+- 'display': Toggle the animation of the result after processing.
+- 'save bla.json': Will store all results as json going forward. Can be disabled again with 'save bla.json off'.
+- normal command is: '.5 400', go to the middle of the history and use the 800 events around that location.
+
+
+### Generating a new story
+
+The testdata/ folder contains a script (createTestData01.py) that can be used to generate (random) stories. Here is one of these that has been rendered into an image using renderStory:
+
+![example story](https://github.com/HaukeBartsch/LoCo/blob/main/images/00000004.png)
+
+We can 'merge-.sh' these stories by successively merging 25 neighboring images. The sequence of those merged images can be played back at an arbitrary frame rate of 2,200 frames per second (see ffmpeg).
+
+![example movie](https://github.com/HaukeBartsch/LoCo/blob/main/images/movie.mp4)
