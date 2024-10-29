@@ -111,4 +111,4 @@ merge.sh | parallel -j 4
 ffmpeg -framerate 2200 -pattern_type glob -i '/tmp/*.png' -c:v libx264 -pix_fmt yuv420p movie.mp4
 ```
 
-[example movie at 1000 frames per second])[https://github.com/HaukeBartsch/LoCo/blob/main/images/movie.mp4]
+[example movie at 1000 frames per second](https://github.com/HaukeBartsch/LoCo/blob/main/images/movie.mp4)
