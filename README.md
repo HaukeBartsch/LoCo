@@ -20,6 +20,8 @@ This is a visualization project.
 
 ![example display of 1,000 detected events](https://github.com/HaukeBartsch/LoCo/blob/main/images/14seconds.gif)
 
+The above animation is done using the LoCo tool set to mode 'display'. Text is rendered inside a terminal window.
+
 ### Discussion
 
 There is a limit to how many things can be displayed over a fixed period of time - perceptual and technical limits. Interestingly other modalities have less issues with such limitations, like sound. You can easily have an object that is moving with more than MACH 1, the speed of sound. And it will still make a noise. What would this correspond to in vision, e.g. in an animation? Moving several times the speed of the perceptual or technological limit? Would we be able to still 'see' something?
