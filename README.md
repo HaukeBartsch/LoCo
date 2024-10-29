@@ -10,7 +10,7 @@ This is a visualization project.
 - import of many log files, sorting them based on time-stamp
   - boosts rb-trees to sort based on time (Y-m-d H:M:S)
 - sequential event detection in an event stream (position and time window)
-  - sequential pattern mining algorithm (backend/) to extract stories from log streams
+  - sequential pattern mining algorithm (backend/ from github.com/fidelity/seq2pat/blob/master/sequential/) to extract stories from log streams
 - display of detected events as text
   - freetype library to render fonts to png
 - example script to generate (random) log files from list of events (exports stories.json)
