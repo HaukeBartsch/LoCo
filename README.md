@@ -117,3 +117,12 @@ ffmpeg -framerate 2200 -pattern_type glob -i '/tmp/*.png' -c:v libx264 -pix_fmt 
 ```
 
 [example movie at 1000 frames per second](https://github.com/HaukeBartsch/LoCo/blob/main/images/movie.mp4)
+
+Discussion: As you can see this is 2,000 frames in 2 seconds, and it is underwhelming. Using alpha-blending does not allow for a physical embodiment an interaction of text.
+
+It seems that we are missing a component of interference/interaction. We would like to have a physical effect/embodiment that can realize those. We need a physical embodiment for text. Working with the fonts above the rendering of single characters is done on a regular matrix of image pixel. Is there a way to have the image pixel of different letters to interact with each other? The movie shows that they occupy the same space, that should result in pressure.
+
+The individual characters would be composed out of pixel cubes, something like this
+
+(gelatinous cubes)[https://github.com/HaukeBartsch/LoCo/blob/main/images/idea.png]
+
