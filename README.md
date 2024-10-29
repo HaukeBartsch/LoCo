@@ -1,20 +1,20 @@
 # LoCo - Log combiner
 
-> [NOTE!]
+> [!NOTE]
 > A LOG - a file recording measurements over time. Maybe related to a nautical term. A piece of wood (a log) on a string is put into the sea and knots in the string are counted to get an estimate of the ships speed. The book the entries from the log were written down into was called the log (-book). 
 
 This is a visualization project.
 
 ## What is working right now
 
-- import of many log files, sorting them based on a time-stamp
-  - boosts rb-trees to sort log-files based on timing over many input streams (Y-m-d H:M:S)
-- sequential event detection based on a location and time window in the log stream
+- import of many log files, sorting them based on time-stamp
+  - boosts rb-trees to sort based on time (Y-m-d H:M:S)
+- sequential event detection in an event stream (position and time window)
   - sequential pattern mining algorithm (backend/) to extract stories from log streams
 - display of detected events as text
   - freetype library to render fonts to png
-- example script to generate (random) log files from list of events (exports json)
-- display of detected events as series of images, render images to a movie
+- example script to generate (random) log files from list of events (exports stories.json)
+- visualization of detected events as series of images, render images to a movie
   - uses ImageMagick to composite individual frames with alpha-blending
   - uses ffmpeg as a command line tool to render at an arbitrary framerate into a movie file
 
