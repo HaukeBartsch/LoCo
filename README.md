@@ -60,9 +60,11 @@ We assume that there exist a directory with log files. Each log entry is coded a
 2019-04-12 12:12:01: INFO This is a log entry.
 ```
 
-Over time log entries from different files will tell how events follow each other. They tell stories. Understanding such stories will help us understand the system that generates them. This is not a problem about error detection or unusual events. We want to understand the normal operation of a system.
+Over time log entries from different files will tell how events follow each other. They tell stories. Understanding such stories will help us understand the system that generates them. We do not want to do error detection or find unusual events. We want to understand the normal operation of a system.
 
 If you do not have an example source of log files you may use a log file generator in the 'testdata' folder.
+
+Once you have the logs that document our events you can analyze them to find sequential pattern using the LoCo executable.
 
 Test if calling the executable on the command line shows it usage help.
 
@@ -100,9 +102,31 @@ Allowed options:
 
 Starting the program will start a REPL which accepts some special commands:
 
-- 'display': Toggle the animation of the result after processing.
-- 'save bla.json': Will store all results as json going forward. Can be disabled again with 'save bla.json off'.
-- normal command is: '.5 400', go to the middle of the history and use the 800 events around that location.
+- 'display': Toggle the animation of the result after processing
+- 'save bla.json': Will store the output of the next analysis command as a json encoded file. Can be disabled again with 'save bla.json off'.
+- example analysis command is: '.5 400<enter>', i.e., go to the middle of the history and use the 800 events before and after to compute sequential pattern.
+
+Saving sequential pattern produces a JSON encoded file like the following:
+
+```{json}
+[
+    [
+        "Het was een donkeren, en stormachtige nacht. [stories]",
+        "Het was een donkeren, en stormachtige nacht. [stories]"
+    ],
+    [
+        "Het was een donkeren, en stormachtige nacht. [stories]",
+        "Het was een donkeren, en stormachtige nacht. [stories]",
+        "Het was een donkeren, en stormachtige nacht. [stories]"
+    ],
+    [
+        "Het was een donkeren, en stormachtige nacht. [stories]",
+        "Het was een donkeren, en stormachtige nacht. [stories]",
+        "Het was een donkeren, en stormachtige nacht. [stories]",
+        "And they all joined forces to pull the tree out of the swamp. [stories]"
+    ],
+...
+```
 
 
 ### Generating a new story
