@@ -8,13 +8,13 @@ This is a visualization project.
 ## What is working right now
 
 - import of many log files, sorting them based on a time-stamp
-  - uses boosts rb-trees to sort based on events over many input streams
+  - boosts rb-trees to sort log-files based on timing over many input streams (Y-m-d H:M:S)
 - sequential event detection based on a location and time window in the log stream
-  - uses a sequential pattern mining algorithm (backend/)
+  - sequential pattern mining algorithm (backend/) to extract stories from log streams
 - display of detected events as text
-  - uses freetext to render fonts to png
-- example script to generate (random) log files
-- display of detected events as series of png images, ffmpeg to render them to a movie
+  - freetype library to render fonts to png
+- example script to generate (random) log files from list of events (exports json)
+- display of detected events as series of images, render images to a movie
   - uses ImageMagick to composite individual frames with alpha-blending
   - uses ffmpeg as a command line tool to render at an arbitrary framerate into a movie file
 
