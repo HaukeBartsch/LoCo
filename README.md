@@ -31,15 +31,21 @@ Perceptual limit: Lets start slow and ramp up. We would like to reach a speed of
 We could use a sound equivalent of 'compression' - to get a sound from vision. Lets say that our medium to display text provides the barriers. LatticeBoltzmann perhaps? Pixel interactions? Interference? White paper as a substrate. A pixel in black as a solid block, alpha as squishy-ness? 
 
 
-## Debug builds
+## Debug / builds
+
+Create the executables using cmake
 
 ```bash
 cmake -DCMAKE_BUILD_TYPE=Debug .
+make
+cd renderStories
+cmake -DCMAKE_BUILD_TYPE=Debug .
+make
 ```
 
 ### Memory leaks
 
-There might be an issue with the memory handling in this module. Trying to find some of the issues with
+Trying to find some memory leaks on MacOS with
 
 
 ```bash
@@ -47,6 +53,16 @@ leaks --atExit -- ./LoCo ....
 ```
 
 ## Usage
+
+We assume that there exist a directory with log files. Each log entry is coded as a line starting with a date/time entry.
+
+```
+2019-04-12 12:12:01: INFO This is a log entry.
+```
+
+Over time log entries from different files will tell how events follow each other. They tell stories. Understanding such stories will help us understand the system that generates them. This is not a problem about error detection or unusual events. We want to understand the normal operation of a system.
+
+If you do not have an example source of log files you may use a log file generator in the 'testdata' folder.
 
 Test if calling the executable on the command line shows it usage help.
 
