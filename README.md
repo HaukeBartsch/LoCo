@@ -135,12 +135,20 @@ The testdata/ folder contains a script (createTestData01.py) that can be used to
 
 ![example story](https://github.com/HaukeBartsch/LoCo/blob/main/images/00000004.png)
 
-We can 'merge-.sh' these stories by successively merging 25 neighboring images. The sequence of those merged images can be played back at an arbitrary frame rate of 2,200 frames per second (see ffmpeg).
+We can merge (.sh) these stories by successively fusing each images with its 25 neighbors. The sequence of merged images can be played back at an arbitrary frame rate of 2,200 frames per second (see ffmpeg).
 
-The following movie was created by generating 2000 stories
+The following steps generate a movie from 2,000 detected stories for playback in 2 seconds. Step 1 creates the a log of events following each other in a random order.
 
 ```{bash}
-testdata/createTestData01.py -i 2000 -o stories.json
+mkdir data2
+testdata/createTestData01.py -i 2000 -o data2/events.log
+```
+
+Detect 2,000 individual stories from this log using LoCo.
+
+```{bash}
+./LoCo --verbose -e 2000 data2/
+>>> save stories.json; .5 800
 ```
 
 Each of the 2,000 stories was rendered into a png image
