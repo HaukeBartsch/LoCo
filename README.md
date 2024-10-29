@@ -89,7 +89,7 @@ Allowed options:
   -e [ --maxNumberOfPattern ] arg      Some logs can produce a very large 
                                        number of pattern, stop generating more 
                                        if you reach this limit [1000].
-  -c [ --cmd ] arg                     Run this command [.5 200].
+  -c [ --cmd ] arg                     Run this command [.5 300].
   -V [ --version ]                     Print the version number.
   -v [ --verbose ]                     Print more verbose output during 
                                        processing.
