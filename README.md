@@ -174,7 +174,7 @@ It seems that we are missing a component of interference/interaction. We would l
 
 Key-words: physical embodiment of text
 
-The individual characters composed of pixel. Pixel represented as *gelatinous* cubes.
+The individual characters are composed of pixel with an attached alpha value. Represent pixel as *gelatinous* cubes that can interfere with each other, occupy the same space and crowd their neighbors.
 
 ![gelatinous cubes](https://github.com/HaukeBartsch/LoCo/blob/main/images/idea.png)
 
