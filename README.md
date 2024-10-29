@@ -137,14 +137,14 @@ The testdata/ folder contains a script (createTestData01.py) that can be used to
 
 We can merge (.sh) these stories by successively fusing each images with its 25 neighbors. The sequence of merged images can be played back at an arbitrary frame rate of 2,200 frames per second (see ffmpeg).
 
-The following steps generate a movie from 2,000 detected stories for playback in 2 seconds. Step 1 creates the a log of events following each other in a random order.
+The following steps generate a movie from 2,000 detected stories for playback in 2 seconds. Step 1 creates the a log of events in a random order.
 
 ```{bash}
 mkdir data2
 testdata/createTestData01.py -i 2000 -o data2/events.log
 ```
 
-Detect 2,000 individual stories from this log using LoCo.
+Detect 2,000 individual stories from this log using LoCo. Note, the number of possible stories is larger than the number of repeated events. A story is every repeated event following or preceding another repeating event.
 
 ```{bash}
 ./LoCo --verbose -e 2000 data2/
