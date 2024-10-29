@@ -8,10 +8,15 @@ This is a visualization project.
 ## What is working right now
 
 - import of many log files, sorting them based on a time-stamp
+  - uses boosts rb-trees to sort based on events over many input streams
 - sequential event detection based on a location and time window in the log stream
+  - uses a sequential pattern mining algorithm (backend/)
 - display of detected events as text
+  - uses freetext to render fonts to png
 - example script to generate (random) log files
 - display of detected events as series of png images, ffmpeg to render them to a movie
+  - uses ImageMagick to composite individual frames with alpha-blending
+  - uses ffmpeg as a command line tool to render at an arbitrary framerate into a movie file
 
 ![example display of 1,000 detected events](https://github.com/HaukeBartsch/LoCo/blob/main/images/14seconds.gif)
 
