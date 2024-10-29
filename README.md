@@ -92,4 +92,23 @@ The testdata/ folder contains a script (createTestData01.py) that can be used to
 
 We can 'merge-.sh' these stories by successively merging 25 neighboring images. The sequence of those merged images can be played back at an arbitrary frame rate of 2,200 frames per second (see ffmpeg).
 
-<video src='https://github.com/HaukeBartsch/LoCo/blob/main/images/movie.mp4' width=180 />
+The following movie was created by generating 2000 stories
+
+```{bash}
+testdata/createTestData01.py -i 2000 -o stories.json
+```
+
+Each of the 2,000 stories was rendered into a png image
+
+```{bash}
+renderStory --font Roboto-Regular.ttf --font_size 12 -o data stories.json
+```
+
+And each of the 2,000 png images was rendered with an overlap of 15 frames (using alpha blending) and combined into a movie using ffmpeg (needs to be installed)
+
+```{bash}
+merge.sh | parallel -j 4
+ffmpeg -framerate 2200 -pattern_type glob -i '/tmp/*.png' -c:v libx264 -pix_fmt yuv420p movie.mp4
+```
+
+[example movie at 1000 frames per second])[https://github.com/HaukeBartsch/LoCo/blob/main/images/movie.mp4]
