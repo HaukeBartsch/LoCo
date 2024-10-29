@@ -122,6 +122,10 @@ Discussion: As you can see this is 2,000 frames in 2 seconds, and it is underwhe
 
 It seems that we are missing a component of interference/interaction. We would like to have a physical effect/embodiment that can realize those. We need a physical embodiment for text. Working with the fonts above the rendering of single characters is done on a regular matrix of image pixel. Is there a way to have the image pixel of different letters to interact with each other? The movie shows that they occupy the same space, that should result in pressure.
 
+# Interference in visualization
+
+Key-words: physical embodiment of text
+
 The individual characters would be composed out of pixel and pixel would be represented as *gelatinous* cubes.
 
 ![gelatinous cubes](https://github.com/HaukeBartsch/LoCo/blob/main/images/idea.png)
