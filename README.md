@@ -137,7 +137,7 @@ The testdata/ folder contains a script (createTestData01.py) that can be used to
 
 ![example story](https://github.com/HaukeBartsch/LoCo/blob/main/images/00000004.png)
 
-We can merge (.sh) these stories by successively fusing each images with its 25 neighbors. The sequence of merged images can be played back at an arbitrary frame rate of 2,200 frames per second (see ffmpeg).
+We can merge (.sh) these stories by successively fusing each image with its 25 neighbors. The sequence of merged images can be played back at an arbitrary frame rate of 2,200 frames per second (see ffmpeg).
 
 The following steps generate a movie from 2,000 detected stories for playback in 2 seconds. Step 1 creates the a log of events in a random order.
 
